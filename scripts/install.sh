@@ -72,6 +72,16 @@ fi
 echo "[8/10] Installing server dependencies..."
 cd "$BNTCAST_DIR/server"
 npm install --omit=dev --quiet
+
+JWT_SECRET_VAL=$(openssl rand -hex 32)
+cat > "$BNTCAST_DIR/server/.env" << EOF
+DATABASE_URL=file:$DATA_DIR/dev.db
+JWT_SECRET=$JWT_SECRET_VAL
+PORT=3001
+MEDIA_DIR=$MEDIA_DIR
+NODE_ENV=production
+EOF
+
 npx prisma generate
 npx prisma db push --accept-data-loss
 npx tsx src/seed.ts
@@ -82,15 +92,6 @@ npm install --quiet
 npm run build
 
 echo "[10/10] Creating systemd service..."
-JWT_SECRET_VAL=$(openssl rand -hex 32)
-
-cat > "$BNTCAST_DIR/server/.env" << EOF
-DATABASE_URL=file:$DATA_DIR/dev.db
-JWT_SECRET=$JWT_SECRET_VAL
-PORT=3001
-MEDIA_DIR=$MEDIA_DIR
-NODE_ENV=production
-EOF
 
 cat > /etc/systemd/system/bntcast.service << EOF
 [Unit]
