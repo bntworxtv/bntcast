@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  stations  Station[]
+}
+
+model Station {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  shortcode       String   @unique
+  listenPort      Int      @default(8001)
+  streamMount     String   @default("/stream")
+  genre           String?  @default("Various")
+  website         String?
+  bitrate         Int      @default(128)
+  samplerate      Int      @default(44100)
+  channels        Int      @default(2)
+  codec           String   @default("mp3")
+  streamEngine    String   @default("shoutcast")
+  enabled         Boolean  @default(true)
+  isLive          Boolean  @default(false)
+  adminPassword   String
+  sourcePassword  String
+  ownerId         String
+  owner           User     @relation(fields: [ownerId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  media           Media[]
+  playlists       Playlist[]
+  listeners       Listener[]
+  scheduleEvents  ScheduleEvent[]
+}
+
+model Media {
+  id          String   @id @default(uuid())
+  title       String
+  artist      String?
+  album       String?
+  filename    String
+  path        String
+  duration    Float?
+  filesize    Int
+  mimeType    String   @default("audio/mpeg")
+  stationId   String
+  station     Station  @relation(fields: [stationId], references: [id])
+  playlists   PlaylistMedia[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Playlist {
+  id          String   @id @default(uuid())
+  name        String
+  isDefault   Boolean  @default(false)
+  weight      Int      @default(0)
+  shuffle     Boolean  @default(true)
+  repeat      Boolean  @default(true)
+  stationId   String
+  station     Station  @relation(fields: [stationId], references: [id])
+  media       PlaylistMedia[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PlaylistMedia {
+  id          String   @id @default(uuid())
+  playlistId  String
+  playlist    Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  mediaId     String
+  media       Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([playlistId, mediaId])
+}
+
+model Listener {
+  id          String   @id @default(uuid())
+  ip          String
+  userAgent   String?
+  userIdent   String?
+  connectedAt DateTime @default(now())
+  disconnectedAt DateTime?
+  duration    Int?
+  stationId   String
+  station     Station  @relation(fields: [stationId], references: [id])
+}
+
+model ScheduleEvent {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  stationId   String
+  station     Station  @relation(fields: [stationId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

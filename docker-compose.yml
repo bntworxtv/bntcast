@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+    container_name: bntcast-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+      - "8001-8100:8001-8100"
+    volumes:
+      - ./media:/app/media
+      - ./config:/app/config
+      - bntcast-db:/app/server/prisma
+    environment:
+      - DATABASE_URL=file:./prisma/dev.db
+      - JWT_SECRET=${JWT_SECRET:-bntcast-change-this-in-production}
+      - PORT=3001
+      - MEDIA_DIR=/app/media
+      - NODE_ENV=production
+
+  client:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client
+    container_name: bntcast-client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+
+volumes:
+  bntcast-db:
