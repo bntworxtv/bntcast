@@ -59,11 +59,11 @@ router.get('/:stationId/stats', async (req: AuthRequest, res) => {
     const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const [unique24h, unique7d, totalConnections, avgDuration] = await Promise.all([
-      prisma.listener.groupMany({
+      prisma.listener.groupBy({
         by: ['ip'],
         where: { stationId: station.id, connectedAt: { gte: last24h } }
       }),
-      prisma.listener.groupMany({
+      prisma.listener.groupBy({
         by: ['ip'],
         where: { stationId: station.id, connectedAt: { gte: last7d } }
       }),
