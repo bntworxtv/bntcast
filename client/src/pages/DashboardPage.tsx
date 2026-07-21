@@ -21,6 +21,7 @@ interface SystemInfo {
   memory: { total: number; free: number; used: number };
   cpus: number;
   loadAvg: number[];
+  uptime: number;
 }
 
 function formatBytes(bytes: number) {
