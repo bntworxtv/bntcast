@@ -71,7 +71,7 @@ fi
 
 echo "[8/10] Installing server dependencies..."
 cd "$BNTCAST_DIR/server"
-npm install --omit=dev --quiet
+npm install --quiet
 
 JWT_SECRET_VAL=$(openssl rand -hex 32)
 cat > "$BNTCAST_DIR/server/.env" << EOF
@@ -85,6 +85,8 @@ EOF
 npx prisma generate
 npx prisma db push --accept-data-loss
 npx tsx src/seed.ts
+npm run build
+npm prune --omit=dev
 
 echo "[9/10] Building client..."
 cd "$BNTCAST_DIR/client"
