@@ -16,21 +16,22 @@ BNTCAST_DIR="/opt/bntcast"
 MEDIA_DIR="/var/lib/bntcast/media"
 CONFIG_DIR="/var/lib/bntcast/config"
 DATA_DIR="/var/lib/bntcast/data"
+PORT=80
 
-echo "[1/10] Updating system packages..."
+echo "[1/9] Updating system packages..."
 apt-get update -qq
 
-echo "[2/10] Installing dependencies..."
-apt-get install -y -qq curl wget git build-essential nginx ffmpeg libssl-dev
+echo "[2/9] Installing dependencies..."
+apt-get install -y -qq curl wget git build-essential ffmpeg libssl-dev
 
-echo "[3/10] Installing Node.js 20.x..."
+echo "[3/9] Installing Node.js 20.x..."
 if ! command -v node &> /dev/null; then
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y -qq nodejs
 fi
 echo "  Node.js $(node -v) installed"
 
-echo "[4/10] Installing SHOUTcast DNAS..."
+echo "[4/9] Installing SHOUTcast DNAS..."
 if [ ! -f /usr/local/bin/sc_serv ]; then
     mkdir -p /tmp/scinstall && cd /tmp/scinstall
     SHOUTCAST_URL="http://download.nullsoft.com/shoutcast/shoutcast-linux.tar.gz"
@@ -46,17 +47,17 @@ if [ ! -f /usr/local/bin/sc_serv ]; then
     cd / && rm -rf /tmp/scinstall
 fi
 
-echo "[5/10] Installing Icecast2..."
+echo "[5/9] Installing Icecast2..."
 apt-get install -y -qq icecast2 || echo "  WARNING: Icecast2 install failed, will use SHOUTcast only"
 
-echo "[6/10] Setting up BNTcast directory..."
+echo "[6/9] Setting up BNTcast directory..."
 mkdir -p "$BNTCAST_DIR" "$MEDIA_DIR" "$CONFIG_DIR" "$DATA_DIR"
 
 if [ -d "/opt/bntcast_tmp" ]; then
     rm -rf /opt/bntcast_tmp
 fi
 
-echo "[7/10] Cloning BNTcast..."
+echo "[7/9] Cloning BNTcast..."
 if [ -d "$BNTCAST_DIR/.git" ]; then
     cd "$BNTCAST_DIR" && git pull --quiet
 else
@@ -69,7 +70,7 @@ else
     fi
 fi
 
-echo "[8/10] Installing server dependencies..."
+echo "[8/9] Installing and building..."
 cd "$BNTCAST_DIR/server"
 npm install --quiet
 
@@ -77,7 +78,7 @@ JWT_SECRET_VAL=$(openssl rand -hex 32)
 cat > "$BNTCAST_DIR/server/.env" << EOF
 DATABASE_URL=file:$DATA_DIR/dev.db
 JWT_SECRET=$JWT_SECRET_VAL
-PORT=3001
+PORT=$PORT
 MEDIA_DIR=$MEDIA_DIR
 NODE_ENV=production
 EOF
@@ -88,12 +89,14 @@ npx tsx src/seed.ts
 npm run build
 npm prune --omit=dev
 
-echo "[9/10] Building client..."
+echo "  Building client..."
 cd "$BNTCAST_DIR/client"
 npm install --quiet
 npm run build
 
-echo "[10/10] Creating systemd service..."
+echo "[9/9] Configuring service..."
+systemctl stop nginx 2>/dev/null || true
+systemctl disable nginx 2>/dev/null || true
 
 cat > /etc/systemd/system/bntcast.service << EOF
 [Unit]
@@ -122,7 +125,7 @@ echo "========================================="
 echo "  BNTcast installed successfully!"
 echo "========================================="
 echo ""
-echo "  Web Dashboard:  http://$(hostname -I | awk '{print $1}'):3001"
+echo "  Web Dashboard:  http://$(hostname -I | awk '{print $1}')"
 echo "  Default Login:  admin@bntcast.local / admin"
 echo "  Media Directory: $MEDIA_DIR"
 echo "  Config Directory: $CONFIG_DIR"
