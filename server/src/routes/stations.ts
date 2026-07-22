@@ -162,7 +162,7 @@ router.post('/:id/start', async (req: AuthRequest, res) => {
     if (engine === 'icecast') {
       await icecastManager.stopStation(station.id);
       await icecastManager.initStation(station);
-      await icecastManager.startStation(station.id);
+      await icecastManager.startStation(station);
     } else {
       shoutcastManager.stopStation(station.id);
       await shoutcastManager.startStation(station);
