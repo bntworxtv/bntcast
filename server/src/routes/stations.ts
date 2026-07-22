@@ -157,12 +157,19 @@ router.post('/:id/start', async (req: AuthRequest, res) => {
       return;
     }
     const engine = streamManager.getEngine(station);
+
     autoDJ.stop(station.id);
     if (engine === 'icecast') {
       await icecastManager.stopStation(station.id);
+      await icecastManager.initStation(station);
+      await icecastManager.startStation(station.id);
     } else {
       shoutcastManager.stopStation(station.id);
+      await shoutcastManager.startStation(station);
     }
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     await autoDJ.start(station.id, station.listenPort, station.sourcePassword, station.codec, station.bitrate, station.samplerate, station.channels, station.streamMount, engine as any);
     await prisma.station.update({ where: { id: station.id }, data: { enabled: true } });
     res.json({ message: 'Station started' });
@@ -181,6 +188,7 @@ router.post('/:id/stop', async (req: AuthRequest, res) => {
       return;
     }
     const engine = streamManager.getEngine(station);
+    autoDJ.stop(station.id);
     if (engine === 'icecast') {
       await icecastManager.stopStation(station.id);
     } else {
