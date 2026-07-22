@@ -36,7 +36,7 @@ class ShoutcastManager {
     return `
 #!/etc/shoutcast/sc_serv.conf
 sc_addr=0.0.0.0
-portbase=${station.listenPort - 1}
+portbase=${station.listenPort}
 password=${station.sourcePassword}
 adminpassword=${station.adminPassword}
 maxuser=100

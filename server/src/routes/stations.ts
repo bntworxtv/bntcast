@@ -4,6 +4,7 @@ import { requireAuth, AuthRequest } from '../middleware/auth';
 import { shoutcastManager } from '../services/shoutcast';
 import { icecastManager } from '../services/icecast';
 import { streamManager } from '../services/streamManager';
+import { autoDJ } from '../services/autodj';
 import { v4 as uuid } from 'uuid';
 
 const router = Router();
@@ -133,6 +134,7 @@ router.delete('/:id', async (req: AuthRequest, res) => {
       return;
     }
     const engine = streamManager.getEngine(station);
+    autoDJ.stop(station.id);
     if (engine === 'icecast') {
       await icecastManager.stopStation(station.id);
     } else {
@@ -155,11 +157,13 @@ router.post('/:id/start', async (req: AuthRequest, res) => {
       return;
     }
     const engine = streamManager.getEngine(station);
+    autoDJ.stop(station.id);
     if (engine === 'icecast') {
-      await icecastManager.startStation(station);
+      await icecastManager.stopStation(station.id);
     } else {
-      await shoutcastManager.startStation(station);
+      shoutcastManager.stopStation(station.id);
     }
+    await autoDJ.start(station.id, station.listenPort, station.sourcePassword, station.codec, station.bitrate, station.samplerate, station.channels, station.streamMount, engine as any);
     await prisma.station.update({ where: { id: station.id }, data: { enabled: true } });
     res.json({ message: 'Station started' });
   } catch (err: any) {

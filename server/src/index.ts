@@ -12,6 +12,7 @@ import { scheduleRouter } from './routes/schedule';
 import { systemRouter } from './routes/system';
 import { encoderRouter } from './routes/encoders';
 import { wsManager } from './services/websocket';
+import { autoDJ } from './services/autodj';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -54,11 +55,13 @@ const server = app.listen(PORT, () => {
 wsManager.init(server);
 
 process.on('SIGTERM', async () => {
+  autoDJ.stopAll();
   await prisma.$disconnect();
   server.close();
 });
 
 process.on('SIGINT', async () => {
+  autoDJ.stopAll();
   await prisma.$disconnect();
   server.close();
 });
