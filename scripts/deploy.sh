@@ -200,8 +200,13 @@ setup_project() {
 
     if [ -f "$project_dir/package.json" ] || [ -f "$project_dir/server/package.json" ]; then
         info "Copying project from $project_dir..."
-        rsync -a --exclude='node_modules' --exclude='.git' --exclude='dist' \
-            "$project_dir/" "$INSTALL_DIR/"
+        if command -v rsync &>/dev/null; then
+            rsync -a --exclude='node_modules' --exclude='.git' --exclude='dist' \
+                "$project_dir/" "$INSTALL_DIR/"
+        else
+            cp -r "$project_dir/." "$INSTALL_DIR/"
+            rm -rf "$INSTALL_DIR/node_modules" "$INSTALL_DIR/.git" "$INSTALL_DIR/server/dist" "$INSTALL_DIR/client/dist"
+        fi
     elif [ -d "$INSTALL_DIR/.git" ]; then
         info "Updating existing installation..."
         cd "$INSTALL_DIR" && git pull --quiet 2>/dev/null || true
@@ -257,10 +262,14 @@ EOF
     # Build client
     info "Installing client dependencies..."
     cd "$INSTALL_DIR/client"
-    npm install --quiet 2>/dev/null
+    npm install --quiet
 
     info "Building client..."
-    npm run build 2>/dev/null
+    npm run build
+
+    if [ ! -d "$INSTALL_DIR/client/dist" ]; then
+        error "Client build failed - dist/ directory not found"
+    fi
 
     log "Client built successfully"
     log "Application build complete!"
