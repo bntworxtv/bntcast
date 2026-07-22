@@ -2,12 +2,22 @@ import { spawn, ChildProcess } from 'child_process';
 import { prisma } from '../index';
 import { wsManager } from './websocket';
 import path from 'path';
+import net from 'net';
 
 interface AutoDJInstance {
   ffmpeg: ChildProcess | null;
+  tcpClient: net.Socket | null;
   stationId: string;
   currentIndex: number;
   queue: string[];
+  port: number;
+  password: string;
+  codec: string;
+  bitrate: number;
+  samplerate: number;
+  channels: number;
+  mount: string;
+  engine: 'shoutcast' | 'icecast';
 }
 
 class AutoDJ {
@@ -29,21 +39,39 @@ class AutoDJ {
     const queue = media.map(m => m.path);
     const instance: AutoDJInstance = {
       ffmpeg: null,
+      tcpClient: null,
       stationId,
       currentIndex: 0,
-      queue
+      queue,
+      port,
+      password,
+      codec,
+      bitrate,
+      samplerate,
+      channels,
+      mount,
+      engine
     };
 
     console.log(`AutoDJ: Starting for station ${stationId} with ${queue.length} files`);
     this.instances.set(stationId, instance);
-    this.playNext(instance, port, password, codec, bitrate, samplerate, channels, mount, engine);
+
+    setTimeout(() => {
+      this.playNext(instance);
+    }, 3000);
   }
 
   stop(stationId: string): void {
     const instance = this.instances.get(stationId);
-    if (instance?.ffmpeg) {
-      instance.ffmpeg.kill('SIGTERM');
-      instance.ffmpeg = null;
+    if (instance) {
+      if (instance.ffmpeg) {
+        instance.ffmpeg.kill('SIGTERM');
+        instance.ffmpeg = null;
+      }
+      if (instance.tcpClient) {
+        instance.tcpClient.destroy();
+        instance.tcpClient = null;
+      }
     }
     this.instances.delete(stationId);
   }
@@ -54,23 +82,13 @@ class AutoDJ {
     }
   }
 
-  async addMedia(stationId: string, filePath: string): Promise<void> {
-    const instance = this.instances.get(stationId);
-    if (instance) {
-      instance.queue.push(filePath);
-    }
-  }
-
-  removeMedia(stationId: string, filePath: string): void {
-    const instance = this.instances.get(stationId);
-    if (instance) {
-      instance.queue = instance.queue.filter(p => p !== filePath);
-    }
-  }
-
-  private playNext(instance: AutoDJInstance, port: number, password: string, codec: string, bitrate: number, samplerate: number, channels: number, mount: string, engine: 'shoutcast' | 'icecast'): void {
+  private playNext(instance: AutoDJInstance): void {
     if (instance.queue.length === 0) {
       console.log(`AutoDJ: No more files for station ${instance.stationId}`);
+      return;
+    }
+
+    if (!this.instances.has(instance.stationId)) {
       return;
     }
 
@@ -80,10 +98,10 @@ class AutoDJ {
     const filename = path.basename(filePath);
     console.log(`AutoDJ: Playing ${filename} on station ${instance.stationId}`);
 
-    this.streamFile(instance, filePath, port, password, codec, bitrate, samplerate, channels, mount, engine);
+    this.streamFile(instance, filePath);
   }
 
-  private streamFile(instance: AutoDJInstance, filePath: string, port: number, password: string, codec: string, bitrate: number, samplerate: number, channels: number, mount: string, engine: 'shoutcast' | 'icecast'): void {
+  private streamFile(instance: AutoDJInstance, filePath: string): void {
     const codecMap: Record<string, string> = {
       mp3: 'libmp3lame',
       ogg: 'libvorbis',
@@ -93,102 +111,150 @@ class AutoDJ {
       wav: 'pcm_s16le',
       m4a: 'aac'
     };
-    const encoder = codecMap[codec] || 'libmp3lame';
-    const contentType = codec === 'ogg' ? 'audio/ogg' : `audio/${codec}`;
-    const formatFlag = codec === 'ogg' ? 'ogg' : 'mp3';
+    const encoder = codecMap[instance.codec] || 'libmp3lame';
+    const contentType = instance.codec === 'ogg' ? 'audio/ogg' : `audio/${instance.codec}`;
+    const formatFlag = instance.codec === 'ogg' ? 'ogg' : 'mp3';
 
-    let ffmpegArgs: string[];
+    const ffmpegArgs = [
+      '-re',
+      '-i', filePath,
+      '-map_metadata', '-1',
+      '-f', formatFlag,
+      '-acodec', encoder,
+      '-ab', `${instance.bitrate}k`,
+      '-ar', `${instance.samplerate}`,
+      '-ac', `${instance.channels}`,
+      '-content_type', contentType,
+      '-'
+    ];
 
-    if (engine === 'icecast') {
-      const auth = `source:${password}`;
-      const url = `http://localhost:${port}${mount}`;
-      ffmpegArgs = [
-        '-re',
-        '-i', filePath,
-        '-map_metadata', '-1',
-        '-f', formatFlag,
-        '-acodec', encoder,
-        '-ab', `${bitrate}k`,
-        '-ar', `${samplerate}`,
-        '-ac', `${channels}`,
-        '-content_type', contentType,
-        '-ice_name', `BNTcast AutoDJ`,
-        '-ice_genre', 'Various',
-        '-ice_public', '1',
-        '-password', password,
-        url
-      ];
-    } else {
-      ffmpegArgs = [
-        '-re',
-        '-i', filePath,
-        '-map_metadata', '-1',
-        '-f', formatFlag,
-        '-acodec', encoder,
-        '-ab', `${bitrate}k`,
-        '-ar', `${samplerate}`,
-        '-ac', `${channels}`,
-        '-content_type', contentType
-      ];
-    }
+    console.log(`AutoDJ: FFmpeg args: ${ffmpegArgs.join(' ')}`);
 
     const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
       stdio: ['pipe', 'pipe', 'pipe']
     });
     instance.ffmpeg = ffmpeg;
 
-    if (engine === 'shoutcast') {
-      const net = require('net');
-      const base64Auth = Buffer.from(`:${password}`).toString('base64');
+    ffmpeg.stderr?.on('data', (data) => {
+      const msg = data.toString();
+      if (msg.includes('Error') || msg.includes('error') || msg.includes('Invalid')) {
+        console.error(`AutoDJ FFmpeg stderr: ${msg.trim()}`);
+      }
+    });
 
-      const tcpClient = net.createConnection(port, 'localhost', () => {
-        const headers = [
-          `POST /stream HTTP/1.1`,
-          `Host: localhost:${port}`,
-          `Authorization: Basic ${base64Auth}`,
-          `Content-Type: ${contentType}`,
-          `icy-name: BNTcast AutoDJ`,
-          `icy-genre: Various`,
-          `icy-public: 1`,
-          `icy-br: ${bitrate}`,
-          `icy-sr: ${samplerate}`,
-          `icy-channels: ${channels}`,
-          `User-Agent: BNTcast-AutoDJ/1.0`,
-          '',
-          ''
-        ].join('\r\n');
-        tcpClient.write(headers);
-        ffmpeg.stdout?.pipe(tcpClient);
-      });
-
-      tcpClient.on('error', (err: any) => {
-        console.error(`AutoDJ TCP error for station ${instance.stationId}:`, err.message);
-      });
-
-      ffmpeg.stderr?.on('data', () => {});
-    } else {
-      ffmpeg.stdout?.on('data', () => {});
-    }
+    ffmpeg.on('error', (err) => {
+      console.error(`AutoDJ FFmpeg spawn error for station ${instance.stationId}:`, err.message);
+      setTimeout(() => this.playNext(instance), 3000);
+    });
 
     ffmpeg.on('exit', (code) => {
       console.log(`AutoDJ: FFmpeg exited with code ${code} for station ${instance.stationId}`);
+      instance.ffmpeg = null;
+
       const songName = path.basename(filePath, path.extname(filePath));
       wsManager.broadcast(instance.stationId, 'song:changed', {
         title: songName,
         artist: undefined
       });
 
-      setTimeout(() => {
-        this.playNext(instance, port, password, codec, bitrate, samplerate, channels, mount, engine);
-      }, 500);
+      if (this.instances.has(instance.stationId)) {
+        setTimeout(() => this.playNext(instance), 500);
+      }
     });
 
-    ffmpeg.on('error', (err) => {
-      console.error(`AutoDJ FFmpeg error for station ${instance.stationId}:`, err.message);
-      setTimeout(() => {
-        this.playNext(instance, port, password, codec, bitrate, samplerate, channels, mount, engine);
-      }, 2000);
+    if (instance.engine === 'icecast') {
+      this.connectIcecast(instance, ffmpeg, contentType);
+    } else {
+      this.connectShoutcast(instance, ffmpeg, contentType);
+    }
+  }
+
+  private connectShoutcast(instance: AutoDJInstance, ffmpeg: ChildProcess, contentType: string): void {
+    const tcpClient = net.createConnection(instance.port, 'localhost');
+
+    tcpClient.on('connect', () => {
+      console.log(`AutoDJ: Connected to SHOUTcast source on port ${instance.port}`);
+
+      const base64Auth = Buffer.from(`:${instance.password}`).toString('base64');
+      const headers = [
+        'POST /stream HTTP/1.1',
+        `Host: localhost:${instance.port}`,
+        `Authorization: Basic ${base64Auth}`,
+        `Content-Type: ${contentType}`,
+        'icy-name: BNTcast AutoDJ',
+        'icy-genre: Various',
+        'icy-public: 1',
+        `icy-br: ${instance.bitrate}`,
+        `icy-sr: ${instance.samplerate}`,
+        `icy-channels: ${instance.channels}`,
+        'User-Agent: BNTcast-AutoDJ/1.0',
+        'Transfer-Encoding: chunked',
+        '',
+        ''
+      ].join('\r\n');
+
+      tcpClient.write(headers);
+      ffmpeg.stdout?.pipe(tcpClient, { end: false });
     });
+
+    tcpClient.on('error', (err) => {
+      console.error(`AutoDJ SHOUTcast TCP error for station ${instance.stationId}:`, err.message);
+      if (instance.ffmpeg) {
+        instance.ffmpeg.kill('SIGTERM');
+      }
+    });
+
+    tcpClient.on('close', () => {
+      console.log(`AutoDJ: SHOUTcast connection closed for station ${instance.stationId}`);
+      instance.tcpClient = null;
+    });
+
+    instance.tcpClient = tcpClient;
+  }
+
+  private connectIcecast(instance: AutoDJInstance, ffmpeg: ChildProcess, contentType: string): void {
+    const mountPath = instance.mount || '/stream';
+    const base64Auth = Buffer.from(`source:${instance.password}`).toString('base64');
+
+    const tcpClient = net.createConnection(instance.port, 'localhost');
+
+    tcpClient.on('connect', () => {
+      console.log(`AutoDJ: Connected to Icecast source on port ${instance.port} mount ${mountPath}`);
+
+      const headers = [
+        `SOURCE ${mountPath} HTTP/1.1`,
+        `Host: localhost:${instance.port}`,
+        `Authorization: Basic ${base64Auth}`,
+        `Content-Type: ${contentType}`,
+        'ice-name: BNTcast AutoDJ',
+        'ice-genre: Various',
+        'ice-public: 1',
+        `ice-br: ${instance.bitrate}`,
+        `ice-sr: ${instance.samplerate}`,
+        `ice-channels: ${instance.channels}`,
+        'User-Agent: BNTcast-AutoDJ/1.0',
+        'Transfer-Encoding: chunked',
+        '',
+        ''
+      ].join('\r\n');
+
+      tcpClient.write(headers);
+      ffmpeg.stdout?.pipe(tcpClient, { end: false });
+    });
+
+    tcpClient.on('error', (err) => {
+      console.error(`AutoDJ Icecast TCP error for station ${instance.stationId}:`, err.message);
+      if (instance.ffmpeg) {
+        instance.ffmpeg.kill('SIGTERM');
+      }
+    });
+
+    tcpClient.on('close', () => {
+      console.log(`AutoDJ: Icecast connection closed for station ${instance.stationId}`);
+      instance.tcpClient = null;
+    });
+
+    instance.tcpClient = tcpClient;
   }
 
   getInstance(stationId: string): { playing: boolean; queueLength: number; currentIndex: number } | null {
