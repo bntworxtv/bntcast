@@ -170,7 +170,7 @@ router.post('/:id/start', async (req: AuthRequest, res) => {
 
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    await autoDJ.start(station.id, station.listenPort, station.sourcePassword, station.codec, station.bitrate, station.samplerate, station.channels, station.streamMount, engine as any);
+    await autoDJ.start(station.id, station.listenPort, station.sourcePassword, station.codec, station.bitrate, station.samplerate, station.channels, station.streamMount, engine as any, station.genre || 'Various');
     await prisma.station.update({ where: { id: station.id }, data: { enabled: true } });
     res.json({ message: 'Station started' });
   } catch (err: any) {
