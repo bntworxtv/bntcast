@@ -389,7 +389,7 @@ setup_service() {
     cat > /etc/systemd/system/${APP_NAME}.service << EOF
 [Unit]
 Description=BNTcast Radio Station Management
-Documentation=https://github.com/YOUR_REPO
+Documentation=https://github.com/bntworxtv/bntcast
 After=network.target nginx.service
 Wants=nginx.service
 
@@ -400,26 +400,11 @@ WorkingDirectory=${INSTALL_DIR}/server
 EnvironmentFile=${INSTALL_DIR}/server/.env
 Restart=always
 RestartSec=5
-StartLimitBurst=5
-StartLimitIntervalSec=60
-
-# Security hardening
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=${DATA_DIR} ${MEDIA_DIR} ${INSTALL_DIR}/server/prisma ${INSTALL_DIR}/config
-
-# Logs
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=${APP_NAME}
 
 ExecStart=$(which node) dist/index.js
 ExecReload=/bin/kill -HUP \$MAINPID
 
-# Graceful shutdown
 TimeoutStopSec=30
-KillMode=mixed
-KillSignal=SIGTERM
 
 [Install]
 WantedBy=multi-user.target
