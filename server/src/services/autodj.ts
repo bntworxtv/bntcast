@@ -162,7 +162,6 @@ class AutoDJ {
 
   private streamToShoutcast(instance: AutoDJInstance, filePath: string, encoder: string, formatFlag: string): void {
     const ffmpegArgs = [
-      '-re',
       '-i', filePath,
       '-map_metadata', '-1',
       '-f', formatFlag,
@@ -203,38 +202,34 @@ class AutoDJ {
 
     const tcpClient = net.createConnection({ port: instance.port, host: '127.0.0.1' }, () => {
       console.log(`AutoDJ: TCP connected to SHOUTcast on 127.0.0.1:${instance.port}`);
+
       tcpClient.write(`${instance.password}\r\n`);
 
-      let responseBuf = Buffer.alloc(0);
-      let responseComplete = false;
-
-      const finishResponse = () => {
-        if (responseComplete) return;
-        responseComplete = true;
-        tcpClient.removeAllListeners('data');
-        const rest = responseBuf.length > 0 ? responseBuf : Buffer.alloc(0);
-        if (rest.length > 0) {
-          console.log(`AutoDJ: Discarding ${rest.length} bytes of leftover response data`);
-        }
-        console.log(`AutoDJ: Starting audio pipe to SHOUTcast`);
-        ffmpeg.stdout?.on('data', (chunk) => {
-          if (tcpClient.writable && !tcpClient.destroyed) {
-            tcpClient.write(chunk);
-          }
-        });
-      };
-
-      tcpClient.on('data', (chunk) => {
-        responseBuf = Buffer.concat([responseBuf, chunk]);
-        const headerEnd = responseBuf.indexOf('\r\n\r\n');
-        if (headerEnd !== -1) {
-          const response = responseBuf.slice(0, headerEnd + 4).toString().trim();
-          console.log(`AutoDJ: SHOUTcast response:\n${response.split('\r\n').join('\n')}`);
-          finishResponse();
+      ffmpeg.stdout?.on('data', (chunk) => {
+        if (tcpClient.writable && !tcpClient.destroyed) {
+          tcpClient.write(chunk);
         }
       });
 
-      setTimeout(finishResponse, 3000);
+      let responseBuf = Buffer.alloc(0);
+      tcpClient.on('data', (chunk) => {
+        responseBuf = Buffer.concat([responseBuf, chunk]);
+        const lineEnd = responseBuf.indexOf('\n');
+        if (lineEnd !== -1) {
+          const response = responseBuf.slice(0, lineEnd).toString().trim();
+          console.log(`AutoDJ: SHOUTcast response: ${response}`);
+          if (response.startsWith('200') || response === 'OK2') {
+            console.log(`AutoDJ: SHOUTcast source accepted`);
+          } else {
+            console.error(`AutoDJ: SHOUTcast rejected source: ${response}`);
+          }
+          tcpClient.removeAllListeners('data');
+        }
+      });
+
+      setTimeout(() => {
+        tcpClient.removeAllListeners('data');
+      }, 2000);
     });
 
     tcpClient.on('error', (err) => {
