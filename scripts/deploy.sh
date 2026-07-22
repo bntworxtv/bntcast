@@ -119,8 +119,8 @@ install_shoutcast() {
     # Try multiple download sources
     local downloaded=false
     local urls=(
-        "https://download.nullsoft.com/shoutcast/shoutcast-linux.tar.gz"
-        "http://download.nullsoft.com/shoutcast/shoutcast-linux.tar.gz"
+        "https://download.nullsoft.com/shoutcast/tools/sc_serv2_linux_x64-latest.tar.gz"
+        "http://download.nullsoft.com/shoutcast/tools/sc_serv2_linux_x64-latest.tar.gz"
     )
 
     for url in "${urls[@]}"; do
