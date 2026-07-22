@@ -20,17 +20,29 @@ A self-hosted alternative to AzuraCast for managing internet radio stations, bui
 - **Multi-format** — MP3, OGG, WAV, AAC, FLAC, M4A, OPUS
 - **REST API** — Full API access for integrations
 
+---
+
 ## Quick Start
 
-### Option 1: Ubuntu Install Script (Recommended)
+### Option 1: VPS Deploy Script (Recommended)
+
+One command to deploy on Ubuntu/Debian VPS:
 
 ```bash
-sudo git clone https://github.com/bntworxtv/bntcast.git
+# Clone the repo
+git clone https://github.com/bntworxtv/bntcast.git
 cd bntcast
-sudo bash scripts/install.sh
+
+# Run the deploy script
+sudo bash scripts/deploy.sh
 ```
 
-Access at `http://your-server-ip:3001`
+With custom domain and SSL:
+```bash
+sudo DOMAIN=yourdomain.com SSL_EMAIL=you@email.com bash scripts/deploy.sh
+```
+
+Access at `http://YOUR_SERVER_IP`
 
 ### Option 2: Docker
 
@@ -57,6 +69,14 @@ npm run build
 npm start
 ```
 
+### Option 4: Legacy Install Script
+
+```bash
+sudo bash scripts/install.sh
+```
+
+---
+
 ## Default Credentials
 
 | Field | Value |
@@ -65,6 +85,8 @@ npm start
 | Password | `admin` |
 
 **Change these immediately in production!**
+
+---
 
 ## Streaming with SHOUTcast
 
@@ -84,6 +106,19 @@ npm start
 2. Connect using Icecast-compatible sources
 3. Mount point will be `/stream`
 
+---
+
+## Deployment Options Comparison
+
+| Method | Best For | Difficulty |
+|--------|----------|------------|
+| **Deploy Script** | Ubuntu VPS (bare metal) | Easy - one command |
+| **Docker** | Any Linux server | Easy - one command |
+| **Manual** | Development / Custom setups | Medium |
+| **Legacy Script** | Older Ubuntu systems | Easy |
+
+---
+
 ## Project Structure
 
 ```
@@ -102,9 +137,11 @@ bntcast/
 │       └── lib/             # API client, WebSocket hook
 ├── docker/                  # Docker files
 ├── icecast/                 # Icecast config templates
-├── scripts/                 # Install scripts
+├── scripts/                 # Install & deploy scripts
 └── docker-compose.yml
 ```
+
+---
 
 ## Environment Variables
 
@@ -114,14 +151,85 @@ bntcast/
 | `DATABASE_URL` | `file:./dev.db` | SQLite database path |
 | `JWT_SECRET` | (random) | JWT signing secret |
 | `MEDIA_DIR` | `./media` | Media files directory |
+| `HTTP_PORT` | `80` | Docker HTTP port |
+
+---
+
+## Service Management
+
+```bash
+# Start
+sudo systemctl start bntcast
+
+# Stop
+sudo systemctl stop bntcast
+
+# Restart
+sudo systemctl restart bntcast
+
+# View logs
+sudo journalctl -u bntcast -f
+
+# Check status
+sudo systemctl status bntcast
+```
+
+---
 
 ## Requirements
 
+### For Deploy Script / Manual Install
 - Ubuntu 20.04+ / Debian 11+
-- Node.js 20+
-- SHOUTcast DNAS v2 (optional)
-- Icecast 2.4+ (optional)
-- FFmpeg (for audio processing)
+- Node.js 20+ (auto-installed by script)
+- SHOUTcast DNAS v2 (auto-installed if available)
+- Icecast 2.4+ (auto-installed via apt)
+- FFmpeg (auto-installed via apt)
+- Nginx (auto-installed by deploy script)
+
+### For Docker
+- Docker 20.10+
+- Docker Compose v2+
+
+---
+
+## Ports
+
+| Port | Protocol | Description |
+|------|----------|-------------|
+| 80 | TCP | HTTP (Nginx / Dashboard) |
+| 3001 | TCP | Node.js API (internal) |
+| 8001-8100 | TCP | Streaming ports (100 stations max) |
+
+---
+
+## Troubleshooting
+
+### Station won't start
+```bash
+# Check if SHOUTcast/Icecast is installed
+which sc_serv
+which icecast2
+
+# Check service logs
+sudo journalctl -u bntcast -f
+```
+
+### Can't upload media
+```bash
+# Check media directory permissions
+ls -la /var/lib/bntcast/media
+sudo chown -R root:root /var/lib/bntcast
+```
+
+### Database issues
+```bash
+# Reset database
+sudo systemctl stop bntcast
+rm /var/lib/bntcast/data/dev.db
+sudo systemctl start bntcast
+```
+
+---
 
 ## License
 

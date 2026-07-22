@@ -2,17 +2,16 @@ FROM node:20-slim
 
 RUN apt-get update && apt-get install -y ffmpeg icecast2 openssl && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+WORKDIR /app/server
 
-COPY server/package*.json ./server/
-RUN cd server && npm install
+COPY server/package*.json ./
+RUN npm install
 
-COPY server/ ./server/
-RUN cd server && npx prisma generate
+COPY server/ ./
+RUN npx prisma generate && npx tsc
 
 RUN mkdir -p /app/media /app/config
 
-WORKDIR /app/server
-EXPOSE 3001
+EXPOSE 3001 8001-8100
 
 CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npx tsx src/seed.ts && node dist/index.js"]
