@@ -24,7 +24,8 @@ MEDIA_DIR="/var/lib/${APP_NAME}/media"
 DATA_DIR="/var/lib/${APP_NAME}/data"
 LOG_DIR="/var/log/${APP_NAME}"
 NODE_VERSION="20"
-APP_PORT="${PORT:-80}"
+HTTP_PORT="${PORT:-80}"
+SERVER_PORT="3001"
 DOMAIN="${DOMAIN:-}"
 SSL_EMAIL="${SSL_EMAIL:-admin@${DOMAIN:-localhost}}"
 
@@ -230,7 +231,7 @@ build_app() {
     cat > "$INSTALL_DIR/server/.env" << EOF
 DATABASE_URL=file:$DATA_DIR/dev.db
 JWT_SECRET=${JWT_SECRET}
-PORT=${APP_PORT}
+PORT=${SERVER_PORT}
 MEDIA_DIR=${MEDIA_DIR}
 NODE_ENV=production
 SHOUTCAST_PORT_START=8001
@@ -288,8 +289,8 @@ setup_nginx() {
 
     cat > /etc/nginx/sites-available/bntcast << NGINX
 server {
-    listen 80;
-    listen [::]:80;
+    listen ${HTTP_PORT};
+    listen [::]:${HTTP_PORT};
     server_name ${server_name};
 
     client_max_body_size 200M;
@@ -301,7 +302,7 @@ server {
 
     # Proxy API requests
     location /api/ {
-        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_pass http://127.0.0.1:${SERVER_PORT};
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -312,7 +313,7 @@ server {
 
     # WebSocket
     location /ws {
-        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_pass http://127.0.0.1:${SERVER_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -323,7 +324,7 @@ server {
 
     # Media files (served by Node.js)
     location /media/ {
-        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_pass http://127.0.0.1:${SERVER_PORT};
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
     }
@@ -425,14 +426,14 @@ setup_firewall() {
 
     if command -v ufw &>/dev/null; then
         ufw allow 22/tcp 2>/dev/null || true
-        ufw allow 80/tcp 2>/dev/null || true
+        ufw allow ${HTTP_PORT}/tcp 2>/dev/null || true
         ufw allow 443/tcp 2>/dev/null || true
-        ufw allow "${APP_PORT}/tcp" 2>/dev/null || true
+        ufw allow "${SERVER_PORT}/tcp" 2>/dev/null || true
         ufw allow "8001:8100/tcp" 2>/dev/null || true
         ufw --force enable 2>/dev/null || true
         log "Firewall configured (UFW)"
     else
-        warn "UFW not found. Ensure ports 80, 443, ${APP_PORT}, and 8001-8100 are open."
+        warn "UFW not found. Ensure ports ${HTTP_PORT}, 443, ${SERVER_PORT}, and 8001-8100 are open."
     fi
 }
 

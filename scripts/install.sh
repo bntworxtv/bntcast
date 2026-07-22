@@ -26,7 +26,8 @@ BNTCAST_DIR="/opt/bntcast"
 MEDIA_DIR="/var/lib/bntcast/media"
 CONFIG_DIR="/var/lib/bntcast/config"
 DATA_DIR="/var/lib/bntcast/data"
-PORT=80
+HTTP_PORT=80
+SERVER_PORT=3001
 
 echo "[1/10] Updating system packages..."
 apt-get update -qq
@@ -99,7 +100,7 @@ JWT_SECRET_VAL=$(openssl rand -hex 32)
 cat > "$BNTCAST_DIR/server/.env" << EOF
 DATABASE_URL=file:$DATA_DIR/dev.db
 JWT_SECRET=$JWT_SECRET_VAL
-PORT=$PORT
+PORT=$SERVER_PORT
 MEDIA_DIR=$MEDIA_DIR
 NODE_ENV=production
 EOF
@@ -120,13 +121,13 @@ echo "[10/10] Configuring services..."
 # Nginx config
 cat > /etc/nginx/sites-available/bntcast << NGINX
 server {
-    listen 80;
-    listen [::]:80;
+    listen ${HTTP_PORT};
+    listen [::]:${HTTP_PORT};
     server_name _;
     client_max_body_size 200M;
 
     location /api/ {
-        proxy_pass http://127.0.0.1:${PORT};
+        proxy_pass http://127.0.0.1:${SERVER_PORT};
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -134,7 +135,7 @@ server {
     }
 
     location /ws {
-        proxy_pass http://127.0.0.1:${PORT};
+        proxy_pass http://127.0.0.1:${SERVER_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -142,7 +143,7 @@ server {
     }
 
     location /media/ {
-        proxy_pass http://127.0.0.1:${PORT};
+        proxy_pass http://127.0.0.1:${SERVER_PORT};
     }
 
     location / {
@@ -182,7 +183,7 @@ systemctl start bntcast
 # Firewall
 if command -v ufw &>/dev/null; then
     ufw allow 22/tcp 2>/dev/null || true
-    ufw allow 80/tcp 2>/dev/null || true
+    ufw allow ${HTTP_PORT}/tcp 2>/dev/null || true
     ufw allow 443/tcp 2>/dev/null || true
     ufw allow "8001:8100/tcp" 2>/dev/null || true
     ufw --force enable 2>/dev/null || true
