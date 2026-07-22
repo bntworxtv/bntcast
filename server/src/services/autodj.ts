@@ -177,7 +177,37 @@ class AutoDJ {
 
       const authHeader = `${instance.password}\r\n`;
       tcpClient.write(authHeader);
-      ffmpeg.stdout?.pipe(tcpClient, { end: false });
+
+      let headerBuffer = Buffer.alloc(0);
+      let headerParsed = false;
+
+      const onData = (chunk: Buffer) => {
+        if (headerParsed) return;
+        headerBuffer = Buffer.concat([headerBuffer, chunk]);
+        const headerEnd = headerBuffer.indexOf('\r\n\r\n');
+        if (headerEnd !== -1) {
+          headerParsed = true;
+          tcpClient.removeListener('data', onData);
+          const headerStr = headerBuffer.slice(0, headerEnd + 4).toString();
+          console.log(`AutoDJ: SHOUTcast response: ${headerStr.trim().split('\r\n')[0]}`);
+          const rest = headerBuffer.slice(headerEnd + 4);
+          if (rest.length > 0) {
+            tcpClient.unshift(rest);
+          }
+          ffmpeg.stdout?.pipe(tcpClient, { end: false });
+        }
+      };
+
+      tcpClient.on('data', onData);
+
+      setTimeout(() => {
+        if (!headerParsed) {
+          headerParsed = true;
+          tcpClient.removeListener('data', onData);
+          console.log(`AutoDJ: SHOUTcast header timeout, sending audio anyway`);
+          ffmpeg.stdout?.pipe(tcpClient, { end: false });
+        }
+      }, 5000);
     });
 
     tcpClient.on('error', (err) => {
