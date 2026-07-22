@@ -33,20 +33,17 @@ class ShoutcastManager {
     const streamPath = path.join(configDir, 'streams');
     fs.mkdirSync(streamPath, { recursive: true });
 
-    return `
-#!/etc/shoutcast/sc_serv.conf
-sc_addr=0.0.0.0
+    return `sc_addr=0.0.0.0
 portbase=${station.listenPort}
 password=${station.sourcePassword}
 adminpassword=${station.adminPassword}
 maxuser=100
 streamid=1
-streampath=/stream
+streampath=/
+streammaxuser=100
 log=1
 logFile=${logPath}
 streamroot=${streamPath}
-streamminurl=/stream
-streammaxurl=/stream.
 uvoxcipherkey=
 titleformat=[BNTcast] %s
 genre=${station.genre || 'Various'}
@@ -54,12 +51,12 @@ url=${station.website || 'http://localhost'}
 public=1
 tscan=0
 metaint=16000
-streamtype=${station.codec}
+streamtype=${station.codec === 'mp3' ? 'mpeg' : station.codec}
 bitrate=${station.bitrate}
 samplerate=${station.samplerate}
-channels=${station.channels === 2 ? 2 : 1}
+channels=${station.channels}
 samplebits=16
-`.trim();
+destip=0.0.0.0`.trim();
   }
 
   async startStation(station: Station): Promise<void> {
@@ -104,10 +101,29 @@ samplebits=16
       this.instances.set(station.id, instance);
       console.log(`SHOUTcast started for ${station.name} on port ${station.listenPort}`);
       wsManager.broadcast(station.id, 'station:started', { stationId: station.id });
+
+      await this.waitForPort(station.listenPort, 10000);
+      console.log(`SHOUTcast port ${station.listenPort} is ready`);
     } catch (err: any) {
       console.error(`Failed to start SHOUTcast for ${station.name}:`, err.message);
       throw err;
     }
+  }
+
+  private waitForPort(port: number, timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const deadline = Date.now() + timeoutMs;
+      const tryConnect = () => {
+        if (Date.now() > deadline) {
+          resolve();
+          return;
+        }
+        const sock = require('net').createConnection(port, 'localhost');
+        sock.on('connect', () => { sock.destroy(); resolve(); });
+        sock.on('error', () => { sock.destroy(); setTimeout(tryConnect, 500); });
+      };
+      tryConnect();
+    });
   }
 
   stopStation(stationId: string): void {

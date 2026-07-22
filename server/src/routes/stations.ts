@@ -168,7 +168,7 @@ router.post('/:id/start', async (req: AuthRequest, res) => {
       await shoutcastManager.startStation(station);
     }
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     await autoDJ.start(station.id, station.listenPort, station.sourcePassword, station.codec, station.bitrate, station.samplerate, station.channels, station.streamMount, engine as any);
     await prisma.station.update({ where: { id: station.id }, data: { enabled: true } });

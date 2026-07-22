@@ -175,25 +175,8 @@ class AutoDJ {
     tcpClient.on('connect', () => {
       console.log(`AutoDJ: Connected to SHOUTcast source on port ${instance.port}`);
 
-      const base64Auth = Buffer.from(`:${instance.password}`).toString('base64');
-      const headers = [
-        'POST /stream HTTP/1.1',
-        `Host: localhost:${instance.port}`,
-        `Authorization: Basic ${base64Auth}`,
-        `Content-Type: ${contentType}`,
-        'icy-name: BNTcast AutoDJ',
-        'icy-genre: Various',
-        'icy-public: 1',
-        `icy-br: ${instance.bitrate}`,
-        `icy-sr: ${instance.samplerate}`,
-        `icy-channels: ${instance.channels}`,
-        'User-Agent: BNTcast-AutoDJ/1.0',
-        'Transfer-Encoding: chunked',
-        '',
-        ''
-      ].join('\r\n');
-
-      tcpClient.write(headers);
+      const authHeader = `${instance.password}\r\n`;
+      tcpClient.write(authHeader);
       ffmpeg.stdout?.pipe(tcpClient, { end: false });
     });
 
@@ -202,6 +185,7 @@ class AutoDJ {
       if (instance.ffmpeg) {
         instance.ffmpeg.kill('SIGTERM');
       }
+      setTimeout(() => this.playNext(instance), 5000);
     });
 
     tcpClient.on('close', () => {
