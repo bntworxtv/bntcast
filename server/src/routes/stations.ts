@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { prisma } from '../index';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { shoutcastManager } from '../services/shoutcast';
+import { icecastManager } from '../services/icecast';
+import { streamManager } from '../services/streamManager';
 import { v4 as uuid } from 'uuid';
 
 const router = Router();
@@ -33,7 +35,9 @@ router.get('/:id', async (req: AuthRequest, res) => {
       res.status(404).json({ error: 'Station not found' });
       return;
     }
-    const status = shoutcastManager.getStationStatus(station.id);
+    const status = streamManager.getEngine(station) === 'icecast'
+      ? await icecastManager.getStatus(station)
+      : shoutcastManager.getStationStatus(station.id);
     res.json({ station, status });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -79,7 +83,11 @@ router.post('/', async (req: AuthRequest, res) => {
       data: { name: 'Default', isDefault: true, stationId: station.id }
     });
 
-    shoutcastManager.initStation(station);
+    if (streamEngine === 'icecast') {
+      await icecastManager.initStation(station);
+    } else {
+      await shoutcastManager.initStation(station);
+    }
     res.json({ station });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -124,7 +132,12 @@ router.delete('/:id', async (req: AuthRequest, res) => {
       res.status(404).json({ error: 'Station not found' });
       return;
     }
-    shoutcastManager.stopStation(station.id);
+    const engine = streamManager.getEngine(station);
+    if (engine === 'icecast') {
+      await icecastManager.stopStation(station.id);
+    } else {
+      shoutcastManager.stopStation(station.id);
+    }
     await prisma.station.delete({ where: { id: req.params.id } });
     res.json({ message: 'Station deleted' });
   } catch (err: any) {
@@ -141,7 +154,12 @@ router.post('/:id/start', async (req: AuthRequest, res) => {
       res.status(404).json({ error: 'Station not found' });
       return;
     }
-    await shoutcastManager.startStation(station);
+    const engine = streamManager.getEngine(station);
+    if (engine === 'icecast') {
+      await icecastManager.startStation(station);
+    } else {
+      await shoutcastManager.startStation(station);
+    }
     await prisma.station.update({ where: { id: station.id }, data: { enabled: true } });
     res.json({ message: 'Station started' });
   } catch (err: any) {
@@ -158,7 +176,12 @@ router.post('/:id/stop', async (req: AuthRequest, res) => {
       res.status(404).json({ error: 'Station not found' });
       return;
     }
-    shoutcastManager.stopStation(station.id);
+    const engine = streamManager.getEngine(station);
+    if (engine === 'icecast') {
+      await icecastManager.stopStation(station.id);
+    } else {
+      shoutcastManager.stopStation(station.id);
+    }
     await prisma.station.update({ where: { id: station.id }, data: { enabled: false } });
     res.json({ message: 'Station stopped' });
   } catch (err: any) {
@@ -168,7 +191,14 @@ router.post('/:id/stop', async (req: AuthRequest, res) => {
 
 router.get('/:id/status', async (req: AuthRequest, res) => {
   try {
-    const status = shoutcastManager.getStationStatus(req.params.id);
+    const station = await prisma.station.findFirst({
+      where: { id: req.params.id, ownerId: req.userId }
+    });
+    if (!station) {
+      res.status(404).json({ error: 'Station not found' });
+      return;
+    }
+    const status = await streamManager.getStreamStatus(station);
     res.json({ status });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

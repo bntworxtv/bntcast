@@ -67,5 +67,11 @@ export const api = {
   system: {
     info: () => request('/system/info'),
     engines: () => request('/system/stream-engines')
+  },
+  encoders: {
+    list: (stationId: string) => request(`/encoders/${stationId}`),
+    create: (stationId: string, data: any) => request(`/encoders/${stationId}`, { method: 'POST', body: JSON.stringify(data) }),
+    update: (stationId: string, encoderId: string, data: any) => request(`/encoders/${stationId}/${encoderId}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (stationId: string, encoderId: string) => request(`/encoders/${stationId}/${encoderId}`, { method: 'DELETE' })
   }
 };

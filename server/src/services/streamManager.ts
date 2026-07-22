@@ -68,6 +68,10 @@ class StreamManager {
   }
 
   getNowPlaying(station: Station): { title: string; artist?: string; genre?: string } {
+    const engine = this.getEngine(station);
+    if (engine === 'icecast') {
+      return { title: 'Unknown', genre: station.genre || undefined };
+    }
     return shoutcastManager.getNowPlaying(station);
   }
 

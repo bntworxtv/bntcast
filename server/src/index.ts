@@ -10,6 +10,7 @@ import { streamRouter } from './routes/stream';
 import { listenerRouter } from './routes/listeners';
 import { scheduleRouter } from './routes/schedule';
 import { systemRouter } from './routes/system';
+import { encoderRouter } from './routes/encoders';
 import { wsManager } from './services/websocket';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -34,6 +35,7 @@ app.use('/api/stream', streamRouter);
 app.use('/api/listeners', listenerRouter);
 app.use('/api/schedule', scheduleRouter);
 app.use('/api/system', systemRouter);
+app.use('/api/encoders', encoderRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', version: '1.0.0', name: 'BNTcast' });
