@@ -204,32 +204,37 @@ class AutoDJ {
     const tcpClient = net.createConnection({ port: instance.port, host: '127.0.0.1' }, () => {
       console.log(`AutoDJ: TCP connected to SHOUTcast on 127.0.0.1:${instance.port}`);
       tcpClient.write(`${instance.password}\r\n`);
-      let responseBuf = Buffer.alloc(0);
 
-      const onResponse = (chunk: Buffer) => {
-        responseBuf = Buffer.concat([responseBuf, chunk]);
-        const endIdx = responseBuf.indexOf('\n');
-        if (endIdx !== -1) {
-          const statusLine = responseBuf.slice(0, endIdx).toString().trim();
-          console.log(`AutoDJ: SHOUTcast source response: ${statusLine}`);
-          tcpClient.removeListener('data', onResponse);
-          ffmpeg.stdout?.pipe(tcpClient, { end: false });
+      let responseBuf = Buffer.alloc(0);
+      let responseComplete = false;
+
+      const finishResponse = () => {
+        if (responseComplete) return;
+        responseComplete = true;
+        tcpClient.removeAllListeners('data');
+        const rest = responseBuf.length > 0 ? responseBuf : Buffer.alloc(0);
+        if (rest.length > 0) {
+          console.log(`AutoDJ: Discarding ${rest.length} bytes of leftover response data`);
         }
+        console.log(`AutoDJ: Starting audio pipe to SHOUTcast`);
+        ffmpeg.stdout?.on('data', (chunk) => {
+          if (tcpClient.writable && !tcpClient.destroyed) {
+            tcpClient.write(chunk);
+          }
+        });
       };
 
-      tcpClient.on('data', onResponse);
-
-      setTimeout(() => {
-        tcpClient.removeListener('data', onResponse);
-        if (tcpClient.writable) {
-          console.log(`AutoDJ: SHOUTcast response timeout, piping audio anyway`);
-          const remaining = responseBuf.length > 0 ? responseBuf : Buffer.alloc(0);
-          if (remaining.length > 0) {
-            tcpClient.unshift(remaining);
-          }
-          ffmpeg.stdout?.pipe(tcpClient, { end: false });
+      tcpClient.on('data', (chunk) => {
+        responseBuf = Buffer.concat([responseBuf, chunk]);
+        const headerEnd = responseBuf.indexOf('\r\n\r\n');
+        if (headerEnd !== -1) {
+          const response = responseBuf.slice(0, headerEnd + 4).toString().trim();
+          console.log(`AutoDJ: SHOUTcast response:\n${response.split('\r\n').join('\n')}`);
+          finishResponse();
         }
-      }, 3000);
+      });
+
+      setTimeout(finishResponse, 3000);
     });
 
     tcpClient.on('error', (err) => {
