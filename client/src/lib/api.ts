@@ -16,7 +16,9 @@ export const api = {
     login: (email: string, password: string) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
     register: (email: string, password: string, name: string) => request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name }) }),
     me: () => request('/auth/me'),
-    logout: () => request('/auth/logout', { method: 'POST' })
+    logout: () => request('/auth/logout', { method: 'POST' }),
+    changePassword: (currentPassword: string, newPassword: string) => request('/auth/password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) }),
+    changeEmail: (email: string, password: string) => request('/auth/email', { method: 'PUT', body: JSON.stringify({ email, password }) })
   },
   stations: {
     list: () => request('/stations'),
@@ -66,7 +68,20 @@ export const api = {
   },
   system: {
     info: () => request('/system/info'),
-    engines: () => request('/system/stream-engines')
+    engines: () => request('/system/stream-engines'),
+    shoutcastStatus: () => request('/system/shoutcast/status'),
+    uploadShoutcast: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_BASE}/system/shoutcast/upload`, {
+        method: 'POST', credentials: 'include', body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      return data;
+    },
+    downloadShoutcast: () => request('/system/shoutcast/download', { method: 'POST' }),
+    restart: () => request('/system/restart', { method: 'POST' })
   },
   encoders: {
     list: (stationId: string) => request(`/encoders/${stationId}`),
