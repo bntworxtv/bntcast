@@ -47,10 +47,10 @@ router.get('/playlist.m3u/:shortcode', async (req, res) => {
       res.status(404).json({ error: 'Station not found' });
       return;
     }
-    const url = streamManager.getStreamUrl(station);
+    const streamUrl = `http://${req.headers.host || 'localhost'}/api/stream/proxy/${station.shortcode}`;
     const m3u = `#EXTM3U
 #EXTINF:-1,${station.name}
-${url}`;
+${streamUrl}`;
     res.set('Content-Type', 'audio/x-mpegurl');
     res.send(m3u);
   } catch (err: any) {

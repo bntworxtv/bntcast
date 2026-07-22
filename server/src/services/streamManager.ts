@@ -37,7 +37,7 @@ class StreamManager {
     if (this.getEngine(station) === 'icecast') {
       return `http://localhost:${station.listenPort}${station.streamMount}`;
     }
-    return `http://localhost:${station.listenPort}/stream`;
+    return `http://localhost:${station.listenPort}/`;
   }
 
   getStreamInfo(station: Station): StreamInfo {
