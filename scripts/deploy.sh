@@ -447,7 +447,11 @@ setup_firewall() {
 # ============================================================
 print_summary() {
     local ip
-    ip=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_SERVER_IP")
+    ip=$(curl -s --max-time 5 https://api.ipify.org 2>/dev/null \
+      || curl -s --max-time 5 https://ifconfig.me 2>/dev/null \
+      || curl -s --max-time 5 https://icanhazip.com 2>/dev/null \
+      || hostname -I 2>/dev/null | awk '{print $1}' \
+      || echo "YOUR_SERVER_IP")
 
     header "Installation Complete!"
 

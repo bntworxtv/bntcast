@@ -193,7 +193,11 @@ echo "========================================="
 echo "  BNTcast installed successfully!"
 echo "========================================="
 echo ""
-echo "  Web Dashboard:  http://$(hostname -I | awk '{print $1}')"
+IP=$(curl -s --max-time 5 https://api.ipify.org 2>/dev/null \
+  || curl -s --max-time 5 https://ifconfig.me 2>/dev/null \
+  || hostname -I | awk '{print $1}' \
+  || echo "YOUR_SERVER_IP")
+echo "  Web Dashboard:  http://${IP}"
 echo "  Default Login:  admin@bntcast.local / admin"
 echo "  Media Directory: $MEDIA_DIR"
 echo "  Config Directory: $CONFIG_DIR"
